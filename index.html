@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台股獵人系列工具 - 智慧投資自動化導航</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            dark: '#090d16',
+                            tile: '#131926',
+                            border: '#1e293b',
+                            green: '#00f2ad',
+                            blue: '#3a86ff',
+                        }
+                    },
+                    animation: {
+                        'float': 'float 3s ease-in-out infinite',
+                        'glow': 'glow 2s ease-in-out infinite',
+                        'pulse-glow': 'pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        'float': {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        'glow': {
+                            '0%, 100%': { boxShadow: '0 0 20px rgba(0, 242, 173, 0.3)' },
+                            '50%': { boxShadow: '0 0 40px rgba(0, 242, 173, 0.5)' },
+                        },
+                        'pulse-glow': {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0.8' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* 全域樣式 */
+        * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        
+        /* 網格背景 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(rgba(30, 41, 59, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 41, 59, 0.1) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        /* 彩色網格邊角發光 */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle at top right, rgba(58, 134, 255, 0.1), transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        body {
+            position: relative;
+            z-index: 0;
+        }
+        
+        main, header, nav, section, footer {
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 滾動進入動畫 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .scroll-reveal {
+            animation: fadeInUp 0.8s ease-out both;
+        }
+
+        /* 彈窗動畫 */
+        .modal-overlay { 
+            transition: opacity 0.3s ease; 
+            opacity: 0; 
+            pointer-events: none; 
+        }
+        .modal-content { 
+            transition: transform 0.3s ease-out; 
+            transform: translateX(100%); 
+        }
+        body.modal-active { 
+            overflow: hidden; 
+        }
+        body.modal-active .modal-overlay { 
+            opacity: 1; 
+            pointer-events: auto; 
+        }
+        body.modal-active .modal-content { 
+            transform: translateX(0); 
+        }
+        
+        /* 自定義捲軸 */
+        ::-webkit-scrollbar { 
+            width: 8px; 
+        }
+        ::-webkit-scrollbar-track { 
+            background: #090d16; 
+        }
+        ::-webkit-scrollbar-thumb { 
+            background: linear-gradient(to bottom, #00f2ad, #3a86ff);
+            border-radius: 10px; 
+        }
+        ::-webkit-scrollbar-thumb:hover { 
+            background: #00f2ad; 
+        }
+
+        /* 圖片放大燈箱 */
+        #lightbox { 
+            display: none; 
+        }
+        #lightbox.active { 
+            display: flex; 
+        }
+        .zoom-img { 
+            transition: transform 0.2s ease; 
+            cursor: zoom-in; 
+        }
+        .zoom-img.zoomed { 
+            transform: scale(2); 
+            cursor: zoom-out; 
+        }
+
+        /* 卡片懸停效果 */
+        .card-hover {
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0, 242, 173, 0.2);
+        }
+
+        /* 導航欄毛玻璃效果 */
+        nav {
+            background: rgba(9, 13, 22, 0.8) !important;
+            backdrop-filter: blur(10px) !important;
+            -webkit-backdrop-filter: blur(10px) !important;
+            transition: all 0.3s ease;
+        }
+
+        /* 霓虹邊框特效 */
+        .neon-border {
+            border: 1px solid;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .neon-border.green {
+            border-color: rgba(0, 242, 173, 0.3);
+            box-shadow: inset 0 0 20px rgba(0, 242, 173, 0.1), 0 0 20px rgba(0, 242, 173, 0.1);
+        }
+        
+        .neon-border.green:hover {
+            border-color: rgba(0, 242, 173, 0.6);
+            box-shadow: inset 0 0 30px rgba(0, 242, 173, 0.2), 0 0 40px rgba(0, 242, 173, 0.3);
+        }
+
+        .neon-border.blue {
+            border-color: rgba(58, 134, 255, 0.3);
+            box-shadow: inset 0 0 20px rgba(58, 134, 255, 0.1), 0 0 20px rgba(58, 134, 255, 0.1);
+        }
+        
+        .neon-border.blue:hover {
+            border-color: rgba(58, 134, 255, 0.6);
+            box-shadow: inset 0 0 30px rgba(58, 134, 255, 0.2), 0 0 40px rgba(58, 134, 255, 0.3);
+        }
+
+        /* 文字漸層 */
+        .text-gradient {
+            background: linear-gradient(135deg, #00f2ad, #3a86ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* 按鈕特效 */
+        .btn-glow {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .btn-glow::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(0, 242, 173, 0.3), rgba(58, 134, 255, 0.3));
+            border-radius: inherit;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: -1;
+        }
+        
+        .btn-glow:hover::before {
+            opacity: 1;
+        }
+
+        /* 動態粒子 */
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: float 6s ease-in-out infinite;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body class="bg-brand-dark text-slate-200 font-sans antialiased selection:bg-brand-green selection:text-brand-dark">
+
+    <!-- 固定導航欄 -->
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-brand-dark/80 backdrop-blur-md border-b border-brand-border">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-blue to-brand-green flex items-center justify-center text-brand-dark font-bold text-xl shadow-lg shadow-brand-green/20">
+                    <i class="fa-solid fa-crosshairs"></i>
+                </div>
+                <span class="text-xl font-bold tracking-wider text-white">台股獵人 <span class="text-xs bg-brand-green/20 text-brand-green px-2 py-0.5 rounded ml-1">SERIES</span></span>
+            </div>
+            <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
+                <a href="#financial" class="hover:text-brand-green transition">財報獵人</a>
+                <a href="#regulation" class="hover:text-brand-green transition">法規獵人</a>
+                <a href="#event" class="hover:text-brand-green transition">事件獵人</a>
+                <a href="#radar" class="hover:text-brand-green transition">族群雷達</a>
+            </div>
+            <a href="#experience" class="bg-brand-green text-brand-dark px-5 py-2.5 rounded-xl font-medium text-sm hover:shadow-lg hover:shadow-brand-green/30 transition">
+                立即體驗
+            </a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="relative pt-40 pb-24 px-6 overflow-hidden">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(58,134,255,0.15),transparent_50%)]"></div>
+        
+        <!-- 動態粒子背景 -->
+        <div class="absolute inset-0 overflow-hidden">
+            <div class="particle" style="width: 100px; height: 100px; background: rgba(0, 242, 173, 0.1); left: 10%; top: 20%; animation-delay: 0s;"></div>
+            <div class="particle" style="width: 150px; height: 150px; background: rgba(58, 134, 255, 0.1); right: 15%; top: 40%; animation-delay: 1s;"></div>
+            <div class="particle" style="width: 80px; height: 80px; background: rgba(0, 242, 173, 0.08); left: 50%; bottom: 10%; animation-delay: 2s;"></div>
+        </div>
+
+        <div class="max-w-4xl mx-auto text-center relative z-10">
+            <span class="inline-block text-sm font-bold tracking-widest text-brand-green uppercase bg-brand-green/10 px-4 py-1.5 rounded-full border border-brand-green/30 scroll-reveal" style="animation-delay: 0.1s;">
+                Automated Investing System
+            </span>
+            
+            <h1 class="text-5xl md:text-7xl font-bold text-white mt-8 leading-tight scroll-reveal" style="animation-delay: 0.2s;">
+                讓數據成為你的投資利刃<br>
+                <span class="text-gradient">台股自動化智慧偵測系統</span>
+            </h1>
+            
+            <p class="text-slate-400 text-lg md:text-xl mt-8 max-w-2xl mx-auto leading-relaxed scroll-reveal" style="animation-delay: 0.3s;">
+                整合財報篩選、法規預判、事件過濾與 AI 族群動態，24小時不間斷監控台股市場，助您精準搶佔市場先機。
+            </p>
+            
+            <div class="mt-10 flex flex-wrap justify-center gap-4 scroll-reveal" style="animation-delay: 0.4s;">
+                <a href="#features" class="bg-gradient-to-r from-brand-green/20 to-brand-blue/20 text-white border border-brand-green/50 px-8 py-3.5 rounded-xl font-medium hover:border-brand-green transition btn-glow">
+                    <i class="fa-solid fa-circle-arrow-down mr-2"></i>瀏覽功能特性
+                </a>
+                <a href="#experience" class="bg-brand-green/20 text-brand-green border border-brand-green/50 px-8 py-3.5 rounded-xl font-medium hover:bg-brand-green/30 transition">
+                    <i class="fa-solid fa-rocket mr-2"></i>立即開始
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 功能卡片網格 -->
+    <section id="features" class="py-20 px-6 max-w-7xl mx-auto">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- 財報獵人 -->
+            <div class="bg-brand-tile p-8 rounded-2xl border border-brand-border hover:border-brand-green/40 transition group card-hover neon-border green scroll-reveal" style="animation-delay: 0.1s;">
+                <div class="w-12 h-12 rounded-xl bg-brand-green/20 flex items-center justify-center text-brand-green text-xl mb-6 group-hover:bg-brand-green group-hover:text-brand-dark transition shadow-lg shadow-brand-green/20">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">財報獵人</h3>
+                <p class="text-slate-400 text-sm leading-relaxed">每月營收與每季財報品質全自動化監控篩選。</p>
+            </div>
+
+            <!-- 法規獵人 -->
+            <div class="bg-brand-tile p-8 rounded-2xl border border-brand-border hover:border-brand-blue/40 transition group card-hover neon-border blue scroll-reveal" style="animation-delay: 0.2s;">
+                <div class="w-12 h-12 rounded-xl bg-brand-blue/20 flex items-center justify-center text-brand-blue text-xl mb-6 group-hover:bg-brand-blue group-hover:text-brand-dark transition shadow-lg shadow-brand-blue/20">
+                    <i class="fa-solid fa-scale-balanced"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">法規獵人</h3>
+                <p class="text-slate-400 text-sm leading-relaxed">全額交割、信用交易、處置股變更先知先覺預判。</p>
+            </div>
+
+            <!-- 事件獵人 -->
+            <div class="bg-brand-tile p-8 rounded-2xl border border-brand-border hover:border-purple-400/40 transition group card-hover neon-border scroll-reveal" style="animation-delay: 0.3s; border-color: rgba(168, 85, 247, 0.3); box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.1), 0 0 20px rgba(168, 85, 247, 0.1);">
+                <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 text-xl mb-6 group-hover:bg-purple-500 group-hover:text-brand-dark transition shadow-lg shadow-purple-500/20">
+                    <i class="fa-solid fa-bullhorn"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">事件獵人</h3>
+                <p class="text-slate-400 text-sm leading-relaxed">公開資訊觀測站與媒體即時資訊雙重智慧過濾。</p>
+            </div>
+
+            <!-- 族群雷達 -->
+            <div class="bg-brand-tile p-8 rounded-2xl border border-brand-border hover:border-amber-400/40 transition group card-hover scroll-reveal" style="animation-delay: 0.4s; border-color: rgba(251, 146, 60, 0.3); box-shadow: inset 0 0 20px rgba(251, 146, 60, 0.1), 0 0 20px rgba(251, 146, 60, 0.1);">
+                <div class="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 text-xl mb-6 group-hover:bg-amber-500 group-hover:text-brand-dark transition shadow-lg shadow-amber-500/20">
+                    <i class="fa-solid fa-satellite-dish"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">族群異動雷達</h3>
+                <p class="text-slate-400 text-sm leading-relaxed">利用 Gemini AI 大模型智慧識別盤中熱點族群。</p>
+            </div>
+        </div>
+    </section>
+
+    <main class="py-12 space-y-32">
+
+        <!-- 財報獵人詳細區段 -->
+        <section id="financial" class="max-w-7xl mx-auto px-6">
+            <div class="max-w-4xl mx-auto space-y-6 scroll-reveal">
+                <div class="flex items-center gap-2 text-brand-green font-medium text-sm tracking-wider uppercase">
+                    <i class="fa-solid fa-circle text-[6px]"></i> STRATEGY SELECTOR
+                </div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white">台股財報獵人</h2>
+                <div class="space-y-4 text-slate-400 leading-relaxed">
+                    <p class="text-slate-200 font-medium">全自動化系統：「每月營收自動篩選」、「每季財報品質」、「監控台股全市場多種指標」。滿足特定邏輯的優質企業，並結合 Telegram 即時推送。</p>
+                    <div class="border-l-4 border-brand-green pl-4 my-4 bg-brand-green/10 py-3 pr-3 rounded-r-lg neon-border green">
+                        <strong class="text-brand-green">核心優勢：</strong><span class="text-slate-300">省去大量手動翻閱財報的時間，專注於決策分析。</span>
+                    </div>
+                    <h4 class="text-white font-bold pt-2 text-lg"><i class="fa-solid fa-layer-group text-brand-green mr-2"></i>五大核心選股策略：</h4>
+                    <ul class="space-y-2 pl-2 text-sm">
+                        <li><strong class="text-slate-200">1. 成長股：</strong>篩選營收 YoY 成長且具高 ROE 之優質標的。</li>
+                        <li><strong class="text-slate-200">2. 一般價值股：</strong>低 P/E 與 P/B 比例之長線投資選擇。</li>
+                        <li><strong class="text-slate-200">3. 巴菲特價值股：</strong>長期 ROE 穩定且毛利率優於同業。</li>
+                        <li><strong class="text-slate-200">4. 轉機股：</strong>營收或利潤從谷底翻揚之標的。</li>
+                        <li><strong class="text-slate-200">5. 衰退股：</strong>營營收與獲利持續下滑、毛利萎縮的標的。</li>
+                    </ul>
+                    <div class="flex flex-col items-start gap-3 pt-4">
+                        <button onclick="openModal('modal-financial')" class="text-brand-green font-bold flex items-center gap-2 hover:translate-x-2 transition-transform btn-glow">
+                            <i class="fa-solid fa-chevron-right"></i>查看完整詳細介紹
+                        </button>
+                        <button onclick="openImageModal('https://i.urusai.cc/NNal9.jpg', '財報獵人界面截圖')" class="text-brand-green font-bold flex items-center gap-2 hover:translate-x-2 transition btn-glow">
+                            <i class="fa-solid fa-image"></i>查看財報獵人界面
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 法規獵人詳細區段 -->
+        <section id="regulation" class="max-w-7xl mx-auto px-6">
+            <div class="max-w-4xl mx-auto space-y-6 scroll-reveal">
+                <div class="flex items-center gap-2 text-brand-blue font-medium text-sm tracking-wider uppercase">
+                    <i class="fa-solid fa-circle text-[6px]"></i> RISK & REGULATION MONITOR
+                </div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white">台股法規獵人</h2>
+                <div class="space-y-4 text-slate-400 leading-relaxed">
+                    <p class="text-slate-200 font-medium">「法規獵人」是為掌握市場制度異動而生的工具，專注於法規對股價波動的潛在影響。做到先知先覺預判與監控。</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 text-sm">
+                        <div class="p-4 bg-slate-800/50 rounded-xl border border-brand-border hover:border-amber-500/50 transition card-hover">
+                            <h5 class="text-white font-bold mb-2"><i class="fa-solid fa-triangle-exclamation text-amber-500 mr-2"></i>全額交割預判</h5>
+                            <p>即時推算每筆淨值 5 元以上的標的，在法規官宣前優先得知恢復交易可能性。</p>
+                        </div>
+                        <div class="p-4 bg-slate-800/50 rounded-xl border border-brand-border hover:border-brand-green/50 transition card-hover">
+                            <h5 class="text-white font-bold mb-2"><i class="fa-solid fa-arrow-trend-up text-brand-green mr-2"></i>信用交易恢復</h5>
+                            <p>監控淨值回升至 10 元之標的，提前布局恢復融資券後之潛在買盤動能。</p>
+                        </div>
+                        <div class="p-4 bg-slate-800/50 rounded-xl border border-brand-border hover:border-brand-blue/50 transition card-hover">
+                            <h5 class="text-white font-bold mb-2"><i class="fa-solid fa-shield-halved text-brand-blue mr-2"></i>處置預警監控</h5>
+                            <p>當個股觸發處置條件，系統將持續跟進，盤後立即推送恢復交易通知。</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-start gap-3 pt-4">
+                        <button onclick="openModal('modal-regulation')" class="text-brand-blue font-bold flex items-center gap-2 hover:translate-x-2 transition-transform btn-glow">
+                            <i class="fa-solid fa-chevron-right"></i>查看完整詳細介紹
+                        </button>
+                        <button onclick="openImageModal('https://i.urusai.cc/0kuF4.jpg', '法規獵人界面截圖')" class="text-brand-blue font-bold flex items-center gap-2 hover:translate-x-2 transition btn-glow">
+                            <i class="fa-solid fa-image"></i>查看法規獵人界面
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 事件獵人詳細區段 -->
+        <section id="event" class="max-w-7xl mx-auto px-6">
+            <div class="max-w-4xl mx-auto space-y-6 scroll-reveal">
+                <div class="flex items-center gap-2 text-purple-400 font-medium text-sm tracking-wider uppercase">
+                    <i class="fa-solid fa-circle text-[6px]"></i> REAL-TIME INFORMATION FILTER
+                </div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white">台股事件獵人</h2>
+                <div class="space-y-4 text-slate-400 leading-relaxed">
+                    <p class="text-slate-200 font-medium">全自動化資訊過濾與即時推送。「事件獵人」協助您過濾無效訊息，專注於真正影響股價的事件。</p>
+                    <ul class="space-y-3 text-sm">
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-check text-purple-400 mt-1 flex-shrink-0"></i>
+                            <span><strong>即時推送：</strong>同步「公開資訊觀測站(MOPS)」與各大財經媒體。</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-check text-purple-400 mt-1 flex-shrink-0"></i>
+                            <span><strong>雙重過濾：</strong>系統自動去除重複公告與非必要雜訊。</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-check text-purple-400 mt-1 flex-shrink-0"></i>
+                            <span><strong>自訂關鍵字與過濾：</strong>可根據使用者需求設定「合併」、「法說會」等關鍵字。</span>
+                        </li>
+                    </ul>
+                    
+                    <div class="mt-6 py-4 px-6 bg-slate-900/60 border border-purple-500/30 rounded-2xl flex justify-center items-center shadow-lg shadow-purple-500/10 hover:shadow-purple-500/20 transition">
+                        <p class="text-slate-300 text-sm font-normal tracking-wide italic">「一套專注於『資訊即時』與『即時通知』的輔助工具。」</p>
+                    </div>
+
+                    <div class="flex flex-col items-start gap-3 pt-4">
+                        <button onclick="openModal('modal-event')" class="text-purple-400 font-bold flex items-center gap-2 hover:translate-x-2 transition-transform btn-glow">
+                            <i class="fa-solid fa-chevron-right"></i>查看完整詳細介紹
+                        </button>
+                        <button onclick="openImageModal('https://i.urusai.cc/2l70s.jpg', '事件獵人界面截圖')" class="text-purple-400 font-bold flex items-center gap-2 hover:translate-x-2 transition btn-glow">
+                            <i class="fa-solid fa-image"></i>查看事件獵人界面
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 族群雷達詳細區段 -->
+        <section id="radar" class="max-w-7xl mx-auto px-6">
+            <div class="max-w-4xl mx-auto space-y-6 scroll-reveal">
+                <div class="flex items-center gap-2 text-amber-400 font-medium text-sm tracking-wider uppercase">
+                    <i class="fa-solid fa-circle text-[6px]"></i> AI-POWERED MARKET RADAR
+                </div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white">台股族群異動雷達</h2>
+                <div class="space-y-4 text-slate-400 leading-relaxed">
+                    <p class="text-slate-200 font-medium">AI 智慧識別盤中熱點族群。利用 Gemini AI 大型語言模型，即時將台股個股歸類至特定產業族群。</p>
+                    <ul class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm pl-1">
+                        <li><strong class="text-amber-400"><i class="fa-solid fa-tags mr-1.5"></i>自動生成標籤：</strong>僅需輸入關鍵字，系統自動歸納名單。</li>
+                        <li><strong class="text-amber-400"><i class="fa-solid fa-bolt mr-1.5"></i>秒級行情對接：</strong>對接 SDK 獲取秒級行情。</li>
+                        <li><strong class="text-amber-400"><i class="fa-solid fa-calculator mr-1.5"></i>強度演算法：</strong>根據成交量與漲幅進行強弱排名。</li>
+                        <li><strong class="text-amber-400"><i class="fa-solid fa-clock mr-1.5"></i>自動切換統計：</strong>收盤後自動轉入「統計模式」。</li>
+                    </ul>
+                    <div class="flex flex-col items-start gap-3 pt-4">
+                        <button onclick="openModal('modal-radar')" class="text-amber-500 font-bold flex items-center gap-2 hover:translate-x-2 transition-transform btn-glow">
+                            <i class="fa-solid fa-chevron-right"></i>查看完整詳細介紹
+                        </button>
+                        <button onclick="openImageModal('https://i.urusai.cc/s9KUV.jpg', '族群雷達界面截圖')" class="text-amber-500 font-bold flex items-center gap-2 hover:translate-x-2 transition btn-glow">
+                            <i class="fa-solid fa-image"></i>查看族群雷達界面
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Telegram 區段 -->
+    <section class="bg-gradient-to-b from-brand-dark to-slate-900 border-t border-brand-border py-24 px-6 text-center scroll-reveal">
+        <div class="max-w-4xl mx-auto space-y-6">
+            <div class="w-16 h-16 rounded-2xl bg-brand-blue/20 flex items-center justify-center text-brand-blue text-3xl mx-auto shadow-lg shadow-brand-blue/20">
+                <i class="fa-brands fa-telegram"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-white">跨平台即時通知：Telegram Bot 全能服務</h2>
+            <p class="text-slate-400 text-base max-w-2xl mx-auto leading-relaxed">
+                全系列獵人工具皆支援與 Telegram 聯動。只要符合條件之事件、篩選結果、處置股警示，立即自動發送至指定之 Bot 群組。
+            </p>
+        </div>
+    </section>
+
+    <!-- App 連結區 -->
+    <section id="experience" class="max-w-6xl mx-auto px-6 py-20 text-center">
+        <div class="bg-gradient-to-tr from-brand-tile to-slate-900 border border-brand-border rounded-3xl p-8 md:p-12 space-y-8 relative overflow-hidden scroll-reveal">
+            <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-brand-green/5 blur-3xl rounded-full"></div>
+            <div class="relative z-10 space-y-4">
+                <h2 class="text-3xl font-bold text-white">立即開啟您的智慧投資之旅</h2>
+                <p class="text-slate-400">「投資不應是一場孤獨的博弈，而是精準數據的體現。」</p>
+            </div>
+            
+            <!-- 3x2 網格配置 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto pt-4 relative z-10">
+                <!-- 1. 台股財報獵人 (綠色) -->
+                <a href="https://tw-financial-hunter-showcase.streamlit.app/" target="_blank" class="flex items-center justify-between p-5 bg-brand-dark border border-brand-border rounded-2xl hover:border-brand-green/60 transition group card-hover neon-border green" style="border-color: rgba(0, 242, 173, 0.3);">
+                    <div class="text-left">
+                        <p class="text-xs text-brand-green font-mono font-bold">APP LINK</p>
+                        <h4 class="text-white font-bold mt-1">台股財報獵人</h4>
+                    </div>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-slate-500 group-hover:text-brand-green transition"></i>
+                </a>
+
+                <!-- 2. 台股法規獵人 (藍色) -->
+                <a href="https://tw-reg-hunter.streamlit.app" target="_blank" class="flex items-center justify-between p-5 bg-brand-dark border border-brand-border rounded-2xl hover:border-brand-blue/60 transition group card-hover neon-border blue" style="border-color: rgba(58, 134, 255, 0.3);">
+                    <div class="text-left">
+                        <p class="text-xs text-brand-blue font-mono font-bold">APP LINK</p>
+                        <h4 class="text-white font-bold mt-1">台股法規獵人</h4>
+                    </div>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-slate-500 group-hover:text-brand-blue transition"></i>
+                </a>
+
+                <!-- 3. 台股事件獵人 (紫色) -->
+                <a href="https://tw-evt-hunter.streamlit.app/" target="_blank" class="flex items-center justify-between p-5 bg-brand-dark border border-purple-500/30 rounded-2xl hover:border-purple-400/60 transition group card-hover" style="box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.1), 0 0 20px rgba(168, 85, 247, 0.1);">
+                    <div class="text-left">
+                        <p class="text-xs text-purple-400 font-mono font-bold">APP LINK</p>
+                        <h4 class="text-white font-bold mt-1">台股事件獵人</h4>
+                    </div>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-slate-500 group-hover:text-purple-400 transition"></i>
+                </a>
+
+                <!-- 4. 台股族群異動雷達 (橘色) -->
+                <a href="https://taiwan-stock-monitor.streamlit.app/" target="_blank" class="flex items-center justify-between p-5 bg-brand-dark border border-amber-500/30 rounded-2xl hover:border-amber-400/60 transition group card-hover" style="box-shadow: inset 0 0 20px rgba(251, 146, 60, 0.1), 0 0 20px rgba(251, 146, 60, 0.1);">
+                    <div class="text-left">
+                        <p class="text-xs text-amber-400 font-mono font-bold">APP LINK</p>
+                        <h4 class="text-white font-bold mt-1 text-sm">台股族群異動雷達 <span class="text-[10px] block opacity-60">(僅展示)</span></h4>
+                    </div>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-slate-500 group-hover:text-amber-400 transition"></i>
+                </a>
+
+                <!-- 5. 台股重大訊息AI分析器 (灰色) -->
+                <a href="https://taiwan-mateinfo-ai-analyzer.onrender.com/" target="_blank" class="flex items-center justify-between p-5 bg-brand-dark border border-slate-500/30 rounded-2xl hover:border-slate-400/60 transition group card-hover">
+                    <div class="text-left">
+                        <p class="text-xs text-slate-400 font-mono font-bold">OTHER APP LINK</p>
+                        <h4 class="text-white font-bold mt-1 text-sm">台股重大訊息AI分析器 <span class="text-[10px] block opacity-60">(僅展示)</span></h4>
+                    </div>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-slate-500 group-hover:text-slate-400 transition"></i>
+                </a>
+
+                <!-- 6. 台股新聞AI分析器 (灰色) -->
+                <a href="https://taiwan-news-ai-analyzer.onrender.com/" target="_blank" class="flex items-center justify-between p-5 bg-brand-dark border border-slate-500/30 rounded-2xl hover:border-slate-400/60 transition group card-hover">
+                    <div class="text-left">
+                        <p class="text-xs text-slate-400 font-mono font-bold">OTHER APP LINK</p>
+                        <h4 class="text-white font-bold mt-1 text-sm">台股新聞AI分析器 <span class="text-[10px] block opacity-60">(僅展示)</span></h4>
+                    </div>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-slate-500 group-hover:text-slate-400 transition"></i>
+                </a>
+            </div>
+
+            <!-- 休眠提示文字 -->
+            <div class="mt-8 text-center relative z-10">
+                <p class="text-xs text-amber-400/80 font-medium tracking-wide">
+                    <i class="fa-solid fa-circle-exclamation mr-1"></i>進入APP若出現休眠頁面請點擊喚醒即可
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-brand-border py-8 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p>© 2026 台股智慧獵人系列工具. All rights reserved.</p>
+            <p>本網站內容僅供功能說明與學術探討，不構成任何投資買賣建議。</p>
+        </div>
+    </footer>
+
+    <!-- Modal 容器 -->
+    <div id="modal-container" class="fixed inset-0 z-[100] pointer-events-none overflow-hidden">
+        <div id="modal-overlay" class="modal-overlay absolute inset-0 bg-brand-dark/95" onclick="closeModal()"></div>
+        <div id="modal-content-wrapper" class="modal-content absolute top-0 right-0 h-full w-full max-w-2xl bg-brand-tile border-l border-brand-border shadow-2xl p-8 overflow-y-auto">
+            <button onclick="closeModal()" class="sticky top-0 float-right text-slate-400 hover:text-white text-2xl z-10 bg-brand-tile/50 p-2 rounded-lg backdrop-blur">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div id="modal-body" class="prose prose-invert max-w-none text-slate-300 leading-relaxed whitespace-pre-line mt-4">
+                <!-- 內容動態注入 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 圖片放大燈箱 -->
+    <div id="lightbox" class="fixed inset-0 z-[200] bg-black/90 items-center justify-center p-4 cursor-zoom-out" onclick="this.classList.remove('active')">
+        <div class="relative max-w-full max-h-full flex items-center justify-center">
+            <img id="lightbox-img" src="" class="max-w-full max-h-[90vh] object-contain transition-transform duration-300 rounded-lg" onclick="event.stopPropagation(); toggleZoom(this)">
+            <p class="absolute bottom-[-40px] left-1/2 -translate-x-1/2 text-white/50 text-sm">點擊圖片可放大/縮小，再次點擊背景關閉</p>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // 介紹文字內容資料庫
+        const contentData = {
+            'modal-financial': `🏹 台股財報獵人：全市場自動化精準選股系統 
+
+「台股財報獵人」 是一款專為台股投資者設計的高效率篩選工具。它結合了「每月營收動能」與「每季財報品質」，協助您在全市場兩千多檔標的中，精準獵取符合特定邏輯的優質企業，並透過自動化掃描與 Telegram 即時推播，讓您不再錯過任何一個營收暴衝的買點。 
+
+🌟 五大核心獵殺策略： 
+🚀 成長股 (Growth)：追蹤營收強勁動能。鎖定連續月份營收 YoY 成長、且具備高 ROE 與獲利品質的領漲標的，適合追求波段價差的攻擊型投資人。 
+🛡️ 巴菲特價值股 (Buffett Value)：以大師視角尋找護城河。嚴選長期 ROE 穩健、毛利率卓越且具備穩定現金流的卓越企業，是價值投資與長期持有者的首選。 
+💎 一般價值股 (Value)：發掘被市場低估的珍寶。透過本益比 (PE)、股價淨值比 (PB) 與高殖利率進行綜合評分，鎖定股價委屈但基本面紮實的優質股。 
+🔄 轉機股 (Turnaround)：捕捉由黑翻紅的關鍵點。篩選出原本處於谷底、但最新營收或財報展現強勁復甦跡象的個股，獲取轉型成功的超額報酬。 
+⚠️ 衰退股 (Recession)：防禦地雷的第一道防線。自動標註營收與獲利持續下滑、毛利萎縮的標的，提醒投資人及時避開基本面轉差的風險。 
+
+⚡ 系統三大優勢： 
+極速掃描模式：獨家「營收極速模式」，每月 1-10 號公佈期僅需數分鐘即可巡視全市場，節省大量搜尋時間。 
+數據長期追蹤：建立專屬財報資料庫，每月自動存檔，完整追蹤個股基本面的演變脈絡。 
+智慧獵人哨兵：支援 Telegram 即時通知，一旦符合獵殺條件，關鍵訊息立即推送到您的手機。 
+
+「台股財報獵人」，讓數據成為您的投資直覺，讓市場成為您的狩獵場。`,
+
+            'modal-regulation': `【台股法規獵人】功能簡介：法規變動，即是暴利契機！ 
+
+大多數投資者將法規視為風險，但真正的「獵人」將制度變動視為絕佳的獲利跳板。本工具專為擅長捕捉市場極端情緒與制度套利的交易者設計，核心邏輯在於：透過精準預判法規轉折，在市場反應前搶先發動交易。 
+
+核心獲利策略佈局： 
+1. 全額交割股套利 (多空雙向) 
+- 預判脫離 (做多)：即時推算每股淨值重回 5 元以上的標的，在官宣恢復普通交易前，搶先佈局淨值翻轉帶來的報復性補漲。 
+- 預判打入 (放空)：偵測淨值跌破 5 元警戒線且持續惡化的危機標的，在流動性鎖死前鎖定獲利空間。 
+
+2. 信用交易資格預判 
+- 恢復信用 (做多)：精準捕捉淨值重回 10 元大關的標的，鎖���恢復融資券後隨之而來的買盤噴發與流動性紅利。 
+- 取消信用 (做空)：提前預判淨值失守 10 元的標的，掌握融資被迫斷頭與賣壓湧現的獲利機會。 
+
+3. 處置股票精準鎖定 
+處置股預警：自動追蹤證交所與櫃買中心最新公布的「處置股票」名單。特別鎖定「第一次處置」的黃金轉折點，協助您捕捉市場極端追價或乖離修正帶來的波動機會，並僅保留近 3 日內的高時效資訊，確保獵捕標的永遠新鮮。 
+
+4. 暫停交易與面額變更監測 
+流動性管理：即時監控行事曆與重大訊息，精準鎖定即將因股東會、減資 or「面額變更」而暫停交易的標的。幫助您在資金鎖死前完成倉位調整，或提前佈局因面額調整後價格重塑帶來的估值紅利。 
+
+5. 地雷股狙擊 (放空) 
+風險攔截：24 小時監控「財報保留意見、未按時公告、財報造假、違約退票」等重大異常信號。在散戶尚未察覺前，系統將第一時間通報，讓您搶先佈局空單。 
+
+為什麼選擇【台股法規獵人】？ 
+- 資訊領先優勢：自動掃描財報數據與全市場重訊，助您掌握極致的資訊不對稱優勢。 
+- 即時戰報推播：整合 Telegram 系統，將符合獲利條件的標的第一時間送達手機，確保您擁有絕對的「第一手動手權」。 
+
+法規不會讓市場停滯，只會讓財富重新分配。加入獵人行列，讓制度成為您的獲利工具！`,
+
+            'modal-event': `台股事件獵人 (Taiwan Stock Event Hunter) 功能簡介 
+
+「台股事件獵人」是一款專為台股投資者開發的自動化監測工具，旨在協助使用者從海量市場資訊中，精準擷取與個人策略相關的關鍵事件。 
+
+本工具的核心功能如下： 
+- 雙重資訊來源監控：系統同步追蹤「公開資訊觀測站 (MOPS)」的官方重大訊息，以及各大財經媒體（如鉅亨網、經濟日報、工商時報等）的即時新聞，確保您能同時掌握官方公告與市場動態。 
+- 自訂關鍵字精準篩選：使用者可根據需求設定多組關鍵字，並支援複合邏輯搜尋（如「台積電+擴產」）。系統僅會擷取符合條件的內容，過濾掉不相關的雜訊。 
+- Telegram 即時推播：整合 Telegram Bot 功能，一旦偵測到符合關鍵字的事件，系統將立即發送通知至您的行動裝置，省去手動重新整理網頁的時間。 
+- 直觀的監測看板：提供簡潔的網頁介面，將重大訊息與財經新聞分類展示。系統內建自動去重與清理機制，確保看板內容整潔且具時效性。 
+- 自動掃描與更新：支援自動更新模式，每 30 分鐘會自動執行一次全市場掃描，讓您在繁忙的盤中也能維持資訊同步。 
+
+這是一套專注於「資訊擷取」與「即時通知」的輔助工具，適合需要高效掌握特定個股或產業動向的投資者使用。`,
+
+            'modal-radar': `🏹 台股族群異動雷達 (V20.5.20) 
+—— 您的台股盤中「資金流向」導航儀 
+
+在台股市場中，「單打獨鬥」的股票往往走不遠，真正的強勢行情通常源於「族群性發散」。本系統結合了 Google Gemini AI 的深度學習與 台新證券SDK 的極速行情，幫助您在盤中千檔標的中，瞬間鎖定資金正在集結的產業戰場。 
+
+🌟 核心特色：為什麼您需要這套系統？ 
+🤖 AI 聰明分類：告別手動更新清單 
+- 不需要再辛苦爬文整理族群清單！裝入關鍵字（如「光通訊」、「矽光子」），Gemini AI 會自動為您篩選出 10-15 支核心成員。 
+- 精準連動模式：不只看產業，更看股價相關性，找出真正的領頭羊與跟隨者。 
+
+📊 比例觸發邏輯：更科學的異動偵測 
+- 傳統的「支數」監控已過時。我們採用 「族群達標比例 (%)」 門檻。 
+- 公平監控：無論族群大（如 20 支）或小（如 4 支），只要達成您設定的百分比（如 30% 成員起漲），雷達立即反應，絕不漏掉 any 板塊挪移。 
+
+⚡ 極速視覺體驗：一眼掌握全局 
+- 加長型訊息流：每則警示視窗高度達 450px，大幅減少滾動次數，讓您在多視窗操作時，一眼看清所有成員的漲跌細節。 
+- 雙欄對稱排版：強勢與弱勢族群左右排開，盤面多空勢力一目了然。 
+
+🛡️ 智慧節能監控：懂交易，也懂休息 
+- 自動盤中判定：系統會自動偵測市場時間（09:00 - 13:35）。收盤後，自動監控會「智慧休眠」，保護您的 API 點數，確保資源用在最關鍵的時刻。 
+
+🛠️ 功能模組介紹： 
+1. 🏹 監控控制台 (Sidebar)：支援 Gemini 多模型選擇，設定自動儲存；即時顯示 SDK 連線品質。 
+2. 📡 實時雷達主畫面：觸發警示卡片顯示族群名稱、符合比例、成員列表，並依強弱動態排序。 
+3. 🛠️ 原始數據診斷區：同時監控行情與 AI 連線狀態，並顯示目前市場模式。 
+
+🚀 快速上手流程： 
+1. 啟動連線：輸入身分證與憑證路徑，啟動雲端連線. 
+2. 定義戰場：使用 AI 搜尋建立產業族群（如：散熱、AI 伺服器）。 
+3. 設定門檻：調整觸發比例（推薦 30%）與漲跌幅。 
+4. 開啟監控：點擊「開啟自動監控」，偵測盤中資金脈動。 
+
+「投資不是看單一股票的表現，而是看資金在板塊間的流動。」`
+        };
+
+        // 打開 Modal
+        function openModal(id) {
+            const body = document.getElementById('modal-body');
+            const content = contentData[id] || '';
+            
+            // 第一行作為標題
+            const lines = content.split('\n');
+            const title = lines[0];
+            const rest = lines.slice(1).join('\n');
+            
+            body.innerHTML = `<h1 class="text-white text-2xl font-bold mb-6 border-b border-brand-border pb-4">${title}</h1><p>${rest}</p>`;
+            
+            document.body.classList.add('modal-active');
+            document.getElementById('modal-container').classList.remove('pointer-events-none');
+        }
+
+        // 打開圖片燈箱
+        function openImageModal(url, title) {
+            const body = document.getElementById('modal-body');
+            body.innerHTML = `
+                <h1 class="text-white text-2xl font-bold mb-0 border-b border-brand-border pb-4">${title}</h1>
+                <div class="mt-4 text-center">
+                    <p class="text-sm text-slate-400 mb-4 font-medium">💡 點擊圖片可開啟全螢幕檢視</p>
+                    <img src="${url}" class="w-full h-auto rounded-xl shadow-2xl border border-brand-border cursor-zoom-in hover:opacity-90 transition" 
+                         alt="${title}" 
+                         onclick="showLightbox('${url}')">
+                </div>
+            `;
+            
+            document.body.classList.add('modal-active');
+            document.getElementById('modal-container').classList.remove('pointer-events-none');
+        }
+
+        // 展示全螢幕圖片燈箱
+        function showLightbox(url) {
+            const lb = document.getElementById('lightbox');
+            const img = document.getElementById('lightbox-img');
+            img.src = url;
+            img.style.transform = "scale(1)";
+            lb.classList.add('active');
+        }
+
+        // 切換圖片放大/縮小
+        function toggleZoom(img) {
+            if (img.style.transform === "scale(2)") {
+                img.style.transform = "scale(1)";
+                img.style.cursor = "zoom-in";
+            } else {
+                img.style.transform = "scale(2)";
+                img.style.cursor = "zoom-out";
+            }
+        }
+
+        // 關閉 Modal
+        function closeModal() {
+            document.body.classList.remove('modal-active');
+            setTimeout(() => {
+                document.getElementById('modal-container').classList.add('pointer-events-none');
+            }, 300);
+        }
+
+        // 滾動進入動畫
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('scroll-reveal');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, {
+            threshold: 0.1
+        });
+
+        // 觀察所有需要動畫的元素
+        document.querySelectorAll('section').forEach(section => {
+            observer.observe(section);
+        });
+
+        // 平滑滾動到錨點
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                const href = this.getAttribute('href');
+                if (href !== '#' && document.querySelector(href)) {
+                    e.preventDefault();
+                    const target = document.querySelector(href);
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+
+        // 關閉 Modal 時按 ESC 鍵
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                document.getElementById('lightbox').classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
